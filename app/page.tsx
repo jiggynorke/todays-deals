@@ -1,69 +1,95 @@
-import Image from "next/image";
+import { connection } from "next/server";
+import { supabase } from "@/lib/supabase";
 
-export default function Home() {
+type Deal = {
+  id: number;
+  title: string;
+  store: string | null;
+  weight: number | null;
+  price: number | null;
+  original_price: number | null;
+  url: string | null;
+};
+
+const money = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
+function percentOff(price: number | null, original: number | null) {
+  if (price == null || !original || original <= price) return null;
+  return Math.round(((original - price) / original) * 100);
+}
+
+export default async function Home() {
+  // Render on every request so new rows in Supabase show up without a redeploy.
+  await connection();
+
+  const { data: deals, error } = await supabase
+    .from("deals")
+    .select("id, title, store, weight, price, original_price, url")
+    .order("created_at", { ascending: false });
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="mx-auto w-full max-w-2xl px-4 py-12">
+      <h1 className="text-3xl font-semibold tracking-tight">Today&apos;s Deals</h1>
+
+      {error && (
+        <p className="mt-6 rounded-lg bg-red-50 p-4 text-red-700">
+          Couldn&apos;t load deals: {error.message}
+        </p>
+      )}
+
+      {!error && deals?.length === 0 && (
+        <p className="mt-6 text-zinc-500">No deals yet. Check back soon.</p>
+      )}
+
+      <ul className="mt-8 flex flex-col gap-3">
+        {deals?.map((deal: Deal) => {
+          const off = percentOff(deal.price, deal.original_price);
+          return (
+            <li
+              key={deal.id}
+              className="flex items-center justify-between gap-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+              <div>
+                <p className="font-medium">
+                  {deal.url ? (
+                    <a href={deal.url} className="hover:underline" target="_blank" rel="noopener noreferrer">
+                      {deal.title}
+                    </a>
+                  ) : (
+                    deal.title
+                  )}
+                </p>
+                <p className="text-sm text-zinc-500">
+                  {[deal.store, deal.weight != null && `${deal.weight}g`]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+
+              <div className="text-right">
+                {deal.price != null && (
+                  <p className="text-lg font-semibold">{money.format(deal.price)}</p>
+                )}
+                <p className="text-sm">
+                  {deal.original_price != null && off != null && (
+                    <span className="text-zinc-400 line-through">
+                      {money.format(deal.original_price)}
+                    </span>
+                  )}
+                  {off != null && (
+                    <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 font-medium text-green-800 dark:bg-green-900 dark:text-green-200">
+                      {off}% off
+                    </span>
+                  )}
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </main>
   );
 }
