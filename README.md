@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Today's Deals
 
-## Getting Started
+A live deals page that lists the day's best discounts, sorted by biggest savings, with hot deals (45%+ off) flagged.
 
-First, run the development server:
+**Live site:** https://todays-deals.vercel.app
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Tech stack
+
+- **Next.js 16 (App Router) + React 19 + TypeScript**: server-rendered page
+- **Tailwind CSS**: styling
+- **Supabase (Postgres)**: deals database with row-level security
+- **Vercel**: hosting, with automatic deploys from GitHub
+
+## How it works
+
+```
+Supabase "deals" table  ──read on every request──▶  Next.js server component  ──▶  Vercel
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Server-side data fetching.** The page is a React Server Component that queries Supabase on the server, so no database logic ships to the browser.
+- **Always fresh.** The page renders per request (`connection()`) rather than being pre-built at deploy time, so new rows in the database appear immediately without a redeploy.
+- **Read-only public access.** Row-level security is enabled on the table, with a single policy that allows `select` only. The public key can read deals but cannot insert, update, or delete.
+- **Discount logic.** Percent off is calculated from sale and original prices, guarding against missing or zero values. Deals are sorted by biggest discount, and those without a discount go last.
+- **Error and empty states.** A failed query or an empty table shows a clear message instead of a broken page.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Development workflow
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Changes are made on feature branches and merged through **pull requests**.
+- Every PR gets its own **Vercel preview deployment** for testing before merge. Merging to `main` deploys to production automatically.
+- Practiced **production rollback** both ways: Vercel Instant Rollback for immediate recovery, and `git revert` for a permanent fix in the codebase.
+- Built with **AI-assisted development (Claude Code)**. All generated code was reviewed before commit.
 
-## Learn More
+## Roadmap
 
-To learn more about Next.js, take a look at the following resources:
+- [ ] **Live data ingestion:** a scheduled job (Vercel Cron) pulling daily promo pricing from the Kroger Products API and upserting it into Supabase
+- [ ] **Manual deal entry:** an authenticated admin page for in-store and coupon deals the API doesn't cover
+- [ ] **Filters:** by store, category, and percent off
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Run locally
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Create a Supabase project with a `deals` table (`title`, `store`, `price`, `original_price`, `url`, `created_at`), enable RLS, and add a public read policy.
+2. Create `.env.local` in the project root:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=your-project-url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+   ```
+3. Install and run:
+   ```bash
+   npm install
+   npm run dev
+   ```
+4. Open http://localhost:3000
