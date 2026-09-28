@@ -21,6 +21,8 @@ function percentOff(price: number | null, original: number | null) {
   return Math.round(((original - price) / original) * 100);
 }
 
+const HOT_DEAL_PERCENT = 45;
+
 export default async function Home() {
   // Render on every request so new rows in Supabase show up without a redeploy.
   await connection();
@@ -29,6 +31,11 @@ export default async function Home() {
     .from("deals")
     .select("id, title, store, weight, price, original_price, url")
     .order("created_at", { ascending: false });
+
+  // Biggest discount first; deals without a discount go last.
+  const sorted = ((deals ?? []) as Deal[])
+    .map((deal) => ({ ...deal, off: percentOff(deal.price, deal.original_price) }))
+    .sort((a, b) => (b.off ?? -1) - (a.off ?? -1));
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-12">
@@ -40,13 +47,13 @@ export default async function Home() {
         </p>
       )}
 
-      {!error && deals?.length === 0 && (
+      {!error && sorted.length === 0 && (
         <p className="mt-6 text-zinc-500">No deals yet. Check back soon.</p>
       )}
 
       <ul className="mt-8 flex flex-col gap-3">
-        {deals?.map((deal: Deal) => {
-          const off = percentOff(deal.price, deal.original_price);
+        {sorted.map((deal) => {
+          const { off } = deal;
           return (
             <li
               key={deal.id}
@@ -54,6 +61,11 @@ export default async function Home() {
             >
               <div>
                 <p className="font-medium">
+                  {off != null && off >= HOT_DEAL_PERCENT && (
+                    <span role="img" aria-label="Hot deal" className="mr-1">
+                      🔥
+                    </span>
+                  )}
                   {deal.url ? (
                     <a href={deal.url} className="hover:underline" target="_blank" rel="noopener noreferrer">
                       {deal.title}
